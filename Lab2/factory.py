@@ -8,7 +8,7 @@ class PlayerFactory:
         for i in players:
             data.append({'nickname':i.nickname,
                     'email': i.email,
-                         'date_of_birth': i.date_of_birth.strftime("%Y-%m-%d"),
+                    'date_of_birth': i.date_of_birth.strftime("%Y-%m-%d"),
                     'xp': i.xp,
                     'class':i.cls
 
