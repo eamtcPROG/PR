@@ -1,7 +1,8 @@
 import requests
+import json
 from bs4 import BeautifulSoup
 
-def recursive(maxPage, startPage, fullurl, data):
+def parseUrls(maxPage, startPage, fullurl, data):
     url = fullurl[startPage]
     page = requests.get(url)
     soup = BeautifulSoup(page.content, "html.parser")
@@ -9,8 +10,8 @@ def recursive(maxPage, startPage, fullurl, data):
     for link in soup.find_all('a', href=True, class_='js-item-ad'):
         link = str(link.get('href'))
         if link[1] != 'b':
-            urlToUppend = 'https://999.md' + link
-            data.append(urlToUppend)
+            urlToAppend = 'https://999.md' + link
+            data.append(urlToAppend)
 
     pages = soup.select('nav.paginator > ul > li > a')
     for page in pages:
@@ -19,11 +20,12 @@ def recursive(maxPage, startPage, fullurl, data):
             fullurl.append(link)
 
     if startPage == maxPage or startPage >= len(fullurl)-1:
+        with open('data.json', 'w') as f:
+            json.dump(data, f)
         print(data)
         return data
     else:
-        recursive(maxPage, startPage+1, fullurl, data)
-
+        parseUrls(maxPage, startPage+1, fullurl, data)
 
 fullurl = ["https://999.md/ro/list/furniture-and-interior/upholstery"]
-links = recursive(5, 0, fullurl, [])
+links = parseUrls(5, 0, fullurl, [])

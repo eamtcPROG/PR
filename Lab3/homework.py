@@ -6,29 +6,29 @@ import json
 def extractInfo(url):
     page = requests.get(url)
     soup = BeautifulSoup(page.content, "html.parser")
-    rusult = {}
+    result = {}
 
     title = soup.find('h1', itemprop='name')
     if title:
-        rusult['Title'] = title.text
+        result['Title'] = title.text
 
     desc = soup.find('div', itemprop='description')
     if desc:
-        rusult['Description'] = desc.text
+        result['Description'] = desc.text
 
     price = soup.find(
         'span', class_='adPage__content__price-feature__prices__price__value')
     currency = soup.find('span', itemprop='priceCurrency')
     if price:
         if price.text.find('negociabil') != -1:
-            rusult['Price'] = price.text
+            result['Price'] = price.text
         else:
-            rusult['Price'] = price.text + ' ' + currency.get('content')
+            result['Price'] = price.text + ' ' + currency.get('content')
 
     country = soup.find('meta', itemprop='addressCountry')
     locality = soup.find('meta', itemprop='addressLocality')
     if country and locality:
-        rusult['Location'] = locality.get(
+        result['Location'] = locality.get(
             'content') + ', ' + country.get('content')
 
     info = {}
@@ -45,7 +45,7 @@ def extractInfo(url):
         'a', class_='adPage__aside__stats__owner__login buyer_experiment  has-reviews')
     if ownerUsername:
         info['Owner Username'] = ownerUsername.text
-    rusult['Ad Info'] = info
+    result['Ad Info'] = info
 
     generalDiv = soup.find('div', class_='adPage__content__features__col')
     general = {}
@@ -58,7 +58,7 @@ def extractInfo(url):
             key = keyElement.text.strip()
             value = valueElement.text.strip()
             general[key] = value
-    rusult['General Info'] = general
+    result['General Info'] = general
 
     featuresDiv = soup.find(
         'div', class_='adPage__content__features__col grid_7 suffix_1')
@@ -72,11 +72,11 @@ def extractInfo(url):
             key = keyElement.text.strip()
             value = valueElement.text.strip()
             features[key] = value
-    rusult['Features'] = features
+    result['Features'] = features
 
-    print(json.dumps(rusult, indent=4, ensure_ascii=False))
+    print(json.dumps(result, indent=4, ensure_ascii=False))
 
-    return rusult
+    return result
 
 
 url = "https://999.md/ro/77310177"
