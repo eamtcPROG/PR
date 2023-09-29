@@ -42,7 +42,7 @@ def extractInfo(url):
     if type:
         info['Ad Type'] = type.text
     ownerUsername = soup.find(
-        'a', class_='adPage__aside__stats__owner__login buyer_experiment  has-reviews')
+        'a', class_='adPage__aside__stats__owner__login buyer_experiment')
     if ownerUsername:
         info['Owner Username'] = ownerUsername.text
     result['Ad Info'] = info
