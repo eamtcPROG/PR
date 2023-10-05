@@ -36,7 +36,7 @@ print(faq_content)
 product_listing_content = fetch_page('/product')
 soup = BeautifulSoup(product_listing_content, 'html.parser')
 product_links = [a['href'] for a in soup.find_all('a', href=True)]
-
+print("Product Page:")
 print(product_listing_content)
 
 for product_link in product_links:
