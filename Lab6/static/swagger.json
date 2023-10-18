@@ -80,7 +80,33 @@
               "description": "Successful operation"
             }
           }
-        }
+        },
+        "delete": {
+  "description": "delete",
+  "produces": [
+    "application/json"
+  ],
+  "parameters": [
+    {
+            "name": "X-Delete-Password",
+            "in": "header",
+            "description": "Password for deletion",
+            "required": true,
+            "type": "string"
+    },
+    {
+      "in": "path",
+      "required": true,
+      "name": "id",
+      "type": "number"
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Successful operation"
+    }
+  }
+}
       }
 
     },
