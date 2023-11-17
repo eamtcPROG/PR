@@ -1,50 +1,37 @@
-import bs4
 import requests
-import json
+from bs4 import BeautifulSoup
 import pika
 
-def load_urls():
-    try:
-        with open("url.json", "r", encoding="utf-8") as json_file:
-            return json.load(json_file)
-    except FileNotFoundError:
-        return []
+def enqueue_resource(url, queue_name='myqueue', host='localhost'):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host))
+    channel = connection.channel()
+    channel.queue_declare(queue=queue_name)
+    channel.basic_publish(exchange='', routing_key=queue_name, body=url)
+    connection.close()
 
-def parse_urls(url, maxNumPage=None, startPage=1):
-    unique_urls = set(load_urls())
+def get_queue_size(channel, queue_name):
+    method_frame = channel.queue_declare(queue=queue_name, passive=True)
+    return method_frame.method.message_count
 
-    for page in range(startPage, startPage + maxNumPage):
-        response = requests.get(url.format(page))
-
-        if response.status_code == 200:
-            soup = bs4.BeautifulSoup(response.text, "html.parser")
-            links = soup.select(".block-items__item__title")
-
-            for link in links:
-                if "/booster/" not in link.get("href"):
-                    url = "https://999.md" + link.get("href")
-                    unique_urls.add(url)
-                    append_to_queue(url)
-
-        else:
-            print(f"Failed to retrieve the web page. Status code: {response.status_code}")
-
-    unique_urls_list = list(unique_urls)
-    with open("url.json", "w", encoding="utf-8") as json_file:
-        json.dump(unique_urls_list, json_file, indent=4, ensure_ascii=False)
-
-    return unique_urls_list
-
-
-def append_to_queue(url):
+def scrape_and_enqueue(base_url, queue_name='myqueue', pages_limit=None, starting_page=1):
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='myqueue')
+    for current_page in range(starting_page, starting_page + (pages_limit or 1)):
+        response = requests.get(base_url + "?page={}".format(current_page))
+        if response.ok:
+            soup = BeautifulSoup(response.text, "html.parser")
+            for item in soup.select(".block-items__item__title[href]"):
+                item_href = item['href']
+                if "/booster/" not in item_href:
+                    complete_url = "https://999.md" + item_href
+                    enqueue_resource(complete_url, queue_name)
+        else:
+            print(f"Failed to retrieve page {current_page}: {response.status_code}")
 
-    channel.basic_publish(exchange='', routing_key='myqueue', body=url)
-
+    queue_size = get_queue_size(channel, queue_name)
+    print(f"Number of elements in the queue: {queue_size}")
     connection.close()
 
 if __name__ == "__main__":
-    parse_urls("https://m.999.md/ro/list/musical-instruments/amplifiers", maxNumPage=2)
+    scrape_and_enqueue("https://m.999.md/ro/list/sports-health-and-beauty/sports-clubs", pages_limit=1)

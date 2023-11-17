@@ -1,74 +1,57 @@
-import pika
-import bs4
 import requests
+from bs4 import BeautifulSoup
 from threading import Thread, Lock
 from tinydb import TinyDB
+import pika
 
+storage_db = TinyDB('db.json', indent=4, ensure_ascii=False, encoding='utf-8')
+data_access_lock = Lock()
 
-db = TinyDB('db.json', indent=4, ensure_ascii=False)
-lock = Lock()
-processed_urls = set()
+def process_url(resource_url, worker_id):
+    try:
+        response = requests.get(resource_url)
+        if response.ok:
+            soup = BeautifulSoup(response.text, "html.parser")
+            header = soup.find('header', {"class": "adPage__header"})
+            price_value = soup.find('span', {"class": "adPage__content__price-feature__prices__price__value"})
+            price_currency = soup.find('span', {"class": "adPage__content__price-feature__prices__price__currency"})
+            description = soup.find('div', {"class": "adPage__content__description"})
 
-def parser(ch, method, properties, body, num):
-    url = body.decode()
+            heading = header.get_text(strip=True) if header else "No heading"
+            price = price_value.get_text(strip=True) if price_value else "No price"
+            currency = price_currency.get_text(strip=True) if price_currency else ""
+            details = description.get_text(strip=True) if description else "No description"
 
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        soup = bs4.BeautifulSoup(response.text, "html.parser")
-        title = soup.find('header', {"class": "adPage__header"}).text
-
-        price_element = soup.find('span', {"class": "adPage__content__price-feature__prices__price__value"})
-        if price_element:
-            price = price_element.text
+            with data_access_lock:
+                storage_db.insert({"heading": heading, "cost": price + ' ' + currency, "details": details})
+            print(f"Worker {worker_id} processed: {resource_url}")
         else:
-            price = "Price not found"
+            print(f"Worker {worker_id} failed with {resource_url}: {response.status_code}")
+    except Exception as e:
+        print(f"Worker {worker_id} encountered an error with {resource_url}: {e}")
 
-        currency_element = soup.find('span', {"class": "adPage__content__price-feature__prices__price__currency"})
-        if currency_element:
-            currency = currency_element.text
-        else:
-            currency = ""
 
-        description_element = soup.find('div', {"class": "adPage__content__description grid_18", "itemprop": "description"})
-        if description_element:
-            description = description_element.text
-        else:
-            description = "Description not found"
-
-        item_data = {
-            "title": title,
-            "price": price + currency,
-            "description": description,
-        }
-
-        with lock:
-            db.insert(item_data)
-
-        print(f"Consumer processing URL: {url}")
-
-    else:
-        print(f"Failed {url}. Status code: {response.status_code}")
-
-def process_data(num):
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+def consume_queue(worker_id, queue_name='myqueue', host='localhost'):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host))
     channel = connection.channel()
-    channel.queue_declare(queue='myqueue')
+    channel.queue_declare(queue=queue_name)
 
-    channel.basic_consume(queue='myqueue', on_message_callback=lambda ch, method, properties, body: parser(ch, method, properties, body, num), auto_ack=True)
-    channel.start_consuming()
+    while True:
+        method_frame, properties, body = channel.basic_get(queue=queue_name)
+        if method_frame:
+            process_url(body.decode(), worker_id)
+            channel.basic_ack(method_frame.delivery_tag)
+        else:
+            print(f"Worker {worker_id} found the queue empty")
+            break
+
+    connection.close()
+
 
 if __name__ == "__main__":
-    num = 7
-
-    print(f'{num} consumers are processing URLs concurrently.')
-
-    threads = []
-
-    for i in range(num):
-        thread = Thread(target=process_data, args=(i,))
+    thread_num = 5
+    worker_threads = [Thread(target=consume_queue, args=(i,)) for i in range(thread_num)]
+    for thread in worker_threads:
         thread.start()
-        threads.append(thread)
-
-    for thread in threads:
+    for thread in worker_threads:
         thread.join()
